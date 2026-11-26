@@ -5,10 +5,12 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.media.RingtoneManager
 import android.os.CountDownTimer
+import android.widget.RemoteViews
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -36,7 +38,7 @@ class PomodoroViewModel(application: Application) : AndroidViewModel(application
         internal var instance: PomodoroViewModel? = null
 
         // true = tiempos cortos para probar notificaciones, false = tiempos reales
-        private const val TEST_MODE = false
+        private const val TEST_MODE = true
 
         private val FOCUS_DURATION_MS: Long =
             if (TEST_MODE) 15 * 1000L else 25 * 60 * 1000L   // 15 s / 25 min
@@ -185,7 +187,7 @@ class PomodoroViewModel(application: Application) : AndroidViewModel(application
         context.sendBroadcast(intent)
     }
 
-    // ----------------- NOTIFICACIÓN AVANZADA ------------------------
+    // ----------------- NOTIFICACIÓN PERSONALIZADA ------------------------
 
     private fun showNotification(title: String, message: String) {
         val intent = Intent(context, MainActivity::class.java).apply {
@@ -196,25 +198,44 @@ class PomodoroViewModel(application: Application) : AndroidViewModel(application
         )
 
         val customTitle = when (_currentPhase.value) {
-            Phase.FOCUS -> "🎯 ¡Tiempo de Concentración!"
-            Phase.BREAK -> "☕ ¡Momento de Descanso!"
+            Phase.FOCUS -> "🎯 ¡Hora de concentrarte!"
+            Phase.BREAK -> "☕ ¡Te ganaste un descanso!"
             else -> title
         }
         val formattedTime = _timeLeft.value?.let { if (it != "00:00") it else "Finalizado" }
             ?: formatTime(FOCUS_DURATION_MS)
         val customMessage = when (_currentPhase.value) {
-            Phase.FOCUS -> "⏰ Restan $formattedTime\n💪 ¡Mantén el enfoque!"
-            Phase.BREAK -> "⏰ Restan $formattedTime\n🧘‍♂️ ¡Relájate unos minutos!"
+            Phase.FOCUS -> "⏰ Restan $formattedTime\n💪 ¡Tú puedes, mantén el enfoque!"
+            Phase.BREAK -> "⏰ Restan $formattedTime\n🧘‍♂️ Respira, estírate y relájate."
             else -> message
         }
-        val bigImage = BitmapFactory.decodeResource(
+
+        // Imagen grande reducida para no sobrecargar la notificación
+        val originalImage = BitmapFactory.decodeResource(
             context.resources,
             if (_currentPhase.value == Phase.FOCUS) R.drawable.focus_image
             else R.drawable.break_image
         )
-        val style = NotificationCompat.BigPictureStyle().bigPicture(bigImage)
+        val bigImage = Bitmap.createScaledBitmap(
+            originalImage,
+            600,
+            (600f * originalImage.height / originalImage.width).toInt(),
+            true
+        )
 
-        val notificationColor = if (_currentPhase.value == Phase.FOCUS) Color.rgb(178, 34, 34) else Color.rgb(46, 139, 87)
+        // Vistas personalizadas con borde rosa neón
+        val smallView = RemoteViews(context.packageName, R.layout.notification_custom).apply {
+            setTextViewText(R.id.notif_title, customTitle)
+            setTextViewText(R.id.notif_text, customMessage)
+        }
+        val bigView = RemoteViews(context.packageName, R.layout.notification_custom_big).apply {
+            setTextViewText(R.id.notif_title, customTitle)
+            setTextViewText(R.id.notif_text, customMessage)
+            setImageViewBitmap(R.id.notif_image, bigImage)
+        }
+
+        // Rosa pastel neón para el acento
+        val notificationColor = Color.rgb(255, 110, 199)
 
         val vibrationPattern = if (_currentPhase.value == Phase.FOCUS)
             longArrayOf(0, 100, 100, 100)
@@ -251,13 +272,15 @@ class PomodoroViewModel(application: Application) : AndroidViewModel(application
             )
             .setContentTitle(customTitle)
             .setContentText(customMessage)
-            .setStyle(style)
+            .setSubText("🍅 PomodoroTec")
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setCustomContentView(smallView)
+            .setCustomBigContentView(bigView)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .setColor(notificationColor)
-            .setColorized(true)
             .setLights(notificationColor, 1000, 1000)
             .setVibrate(vibrationPattern)
             .setProgress(100, progress, false)
