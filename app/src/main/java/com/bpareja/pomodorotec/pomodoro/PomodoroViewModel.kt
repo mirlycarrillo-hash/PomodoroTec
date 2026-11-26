@@ -38,7 +38,7 @@ class PomodoroViewModel(application: Application) : AndroidViewModel(application
         internal var instance: PomodoroViewModel? = null
 
         // true = tiempos cortos para probar notificaciones, false = tiempos reales
-        private const val TEST_MODE = true
+        private const val TEST_MODE = false
 
         private val FOCUS_DURATION_MS: Long =
             if (TEST_MODE) 15 * 1000L else 25 * 60 * 1000L   // 15 s / 25 min
